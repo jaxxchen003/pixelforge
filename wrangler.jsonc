@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "mkfast-template",
+  "name": "pixelforge",
   "compatibility_date": "2025-09-02",
   "compatibility_flags": [
     // Enable Node.js API
@@ -44,12 +44,7 @@
 
   // Custom domains
   // https://developers.cloudflare.com/workers/configuration/routing/custom-domains/
-  "routes": [
-    {
-      "pattern": "demo.tanstarter.dev",
-      "custom_domain": true
-    }
-  ],
+  
 
   /**
    * Bindings
@@ -63,8 +58,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "mkfast-template",
-      "database_id": "dc34f04a-3445-4b5c-bf61-c4ec2328e239",
+      "database_name": "pixelforge-db",
+      "database_id": "4d44fb61-43af-4679-ae0e-4262dccf6bfd",
       "migrations_dir": "./src/db/migrations"
     }
   ],
@@ -73,7 +68,7 @@
    */
   "r2_buckets": [
     {
-      "bucket_name": "mkfast-template",
+      "bucket_name": "pixelforge-bucket",
       "binding": "BUCKET"
     }
   ],
@@ -84,7 +79,7 @@
   "kv_namespaces": [
     {
       "binding": "CACHE",
-      "id": "d3433bea8e7549da914f1f76dc73573c"
+      "id": "50a33ba238a943f5ae23aab84e94b94d"
     }
   ]
 }
