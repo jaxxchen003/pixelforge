@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { PALETTES } from '@/features/pixel-engine/palettes';
 import { processImageToPixelArt, type ColorStats } from '@/features/pixel-engine/converter';
+import { downloadCanvas, exportFramesToGif, downloadBlob } from '@/features/pixel-engine/gif-export';
 import {
   IconUpload,
   IconGridDots,
@@ -8,7 +9,8 @@ import {
   IconSparkles,
   IconColorFilter,
   IconPrinter,
-  IconInfoCircle
+  IconInfoCircle,
+  IconMovie
 } from '@tabler/icons-react';
 
 interface PixelStudioProps {
@@ -24,7 +26,6 @@ export function PixelStudio({
   initialResolution = 32,
   initialPalette = 'original',
   defaultShowGrid = false,
-  /* pageMode = 'general' */
   title = 'Image to Pixel Art Converter',
   subtitle = 'Instant in-browser pixelation engine with grid overlay, physical bead palettes, and lossless exports.'
 }: PixelStudioProps) {
@@ -35,6 +36,7 @@ export function PixelStudio({
   const [dithering, setDithering] = useState<boolean>(true);
   const [stats, setStats] = useState<ColorStats[]>([]);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [isGifExporting, setIsGifExporting] = useState<boolean>(false);
 
   const imgRef = useRef<HTMLImageElement | null>(null);
   const previewContainerRef = useRef<HTMLDivElement | null>(null);
@@ -93,22 +95,45 @@ export function PixelStudio({
     }
   };
 
-  // 导出原尺寸像素 PNG
+  // 1. 修复：可靠导出原尺寸原生像素 PNG
   const handleDownloadOriginal = () => {
     if (!lowCanvasRef.current) return;
-    const a = document.createElement('a');
-    a.download = `pixel_${pixelSize}x${pixelSize}.png`;
-    a.href = lowCanvasRef.current.toDataURL('image/png');
-    a.click();
+    downloadCanvas(lowCanvasRef.current, `pixel_${pixelSize}x${pixelSize}.png`);
   };
 
-  // 导出高清放大预览图（带网格/不带网格）
+  // 2. 修复：可靠导出高清网格图纸 PNG
   const handleDownloadDisplay = () => {
     if (!displayCanvasRef.current) return;
-    const a = document.createElement('a');
-    a.download = `pixelforge_hd_${pixelSize}x${pixelSize}.png`;
-    a.href = displayCanvasRef.current.toDataURL('image/png');
-    a.click();
+    downloadCanvas(displayCanvasRef.current, `pixelforge_grid_${pixelSize}x${pixelSize}.png`);
+  };
+
+  // 3. 新增：动画 GIF 动态演化导出（从原图渐变像素化 / 闪烁循环 GIF）
+  const handleExportAnimatedGif = async () => {
+    if (!imgRef.current) return;
+    setIsGifExporting(true);
+    try {
+      // 动态生成一阶阶梯像素化的多帧动画
+      const resolutions = [16, 24, 32, 48, 64, 96, 64, 48, 32, 24];
+      const frames: HTMLCanvasElement[] = [];
+
+      for (const res of resolutions) {
+        const step = processImageToPixelArt(imgRef.current, {
+          pixelSize: res,
+          paletteId,
+          dithering,
+          showGrid: false,
+          gridColor: ''
+        });
+        frames.push(step.displayCanvas);
+      }
+
+      const gifBlob = await exportFramesToGif(frames, 4);
+      downloadBlob(gifBlob, `pixelforge_animated_${pixelSize}px.gif`);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsGifExporting(false);
+    }
   };
 
   return (
@@ -131,7 +156,7 @@ export function PixelStudio({
             <label className="flex flex-col items-center justify-center border-2 border-dashed border-border hover:border-primary/50 cursor-pointer p-6 rounded-xl transition-colors bg-muted/20">
               <IconUpload className="size-8 text-muted-foreground mb-2" />
               <span className="text-sm font-medium">Click or Drag Image Here</span>
-              <span className="text-xs text-muted-foreground mt-1">PNG, JPG, WEBP (Processed 100% locally)</span>
+              <span className="text-xs text-muted-foreground mt-1">PNG, JPG, WEBP (Processed 100% in browser memory)</span>
               <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
             </label>
           </div>
@@ -187,11 +212,11 @@ export function PixelStudio({
             </select>
           </div>
 
-          {/* 增强网格与抖动开关 (Killer Features) */}
+          {/* 增强网格与抖动开关 */}
           <div className="space-y-3 pt-2 border-t border-border">
             <label className="flex items-center justify-between cursor-pointer">
               <span className="text-sm font-semibold flex items-center gap-2">
-                <IconGridDots className="size-4" /> Toggle Grid Lines (坐标网格)
+                <IconGridDots className="size-4" /> Toggle Grid Lines (坐标网格线)
               </span>
               <input
                 type="checkbox"
@@ -220,7 +245,7 @@ export function PixelStudio({
               type="button"
               disabled={!imgSrc || isProcessing}
               onClick={handleDownloadOriginal}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-primary text-primary-foreground font-semibold rounded-xl hover:opacity-90 transition disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-primary text-primary-foreground font-semibold rounded-xl hover:opacity-90 transition disabled:opacity-50 cursor-pointer"
             >
               <IconDownload className="size-5" /> Download Native Pixel PNG ({pixelSize}px)
             </button>
@@ -228,9 +253,17 @@ export function PixelStudio({
               type="button"
               disabled={!imgSrc || isProcessing}
               onClick={handleDownloadDisplay}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-muted hover:bg-muted/80 text-foreground font-semibold rounded-xl border border-border transition disabled:opacity-50 text-sm"
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-muted hover:bg-muted/80 text-foreground font-semibold rounded-xl border border-border transition disabled:opacity-50 text-sm cursor-pointer"
             >
               <IconPrinter className="size-4" /> Download Printable HD / Grid PNG
+            </button>
+            <button
+              type="button"
+              disabled={!imgSrc || isProcessing || isGifExporting}
+              onClick={handleExportAnimatedGif}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition disabled:opacity-50 text-sm cursor-pointer shadow-xs"
+            >
+              <IconMovie className="size-4" /> {isGifExporting ? 'Generating Animated GIF...' : 'Export Pixel Animated GIF'}
             </button>
           </div>
         </div>
@@ -251,7 +284,7 @@ export function PixelStudio({
             )}
           </div>
 
-          {/* 材料清单 (BOM) & 色彩统计 (针对拼豆/手工/方块) */}
+          {/* 材料清单 (BOM) & 色彩统计 */}
           {stats.length > 0 && (
             <div className="bg-card border border-border rounded-2xl p-6">
               <h3 className="text-base font-bold mb-3 flex items-center gap-2">

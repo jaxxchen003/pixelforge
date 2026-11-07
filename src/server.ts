@@ -60,13 +60,22 @@ export default {
       }
     }
 
-    const response = await localeMiddleware(request, () =>
-      handler.fetch(request, {
-        context: {
-          fromFetch: true,
-        },
-      })
-    );
+    let response: Response;
+    try {
+      response = await localeMiddleware(request, () =>
+        handler.fetch(request, {
+          context: {
+            fromFetch: true,
+          },
+        })
+      );
+    } catch (err: any) {
+      console.error("[Worker Error]:", err);
+      return new Response("Worker Error: " + (err?.stack || err?.message || String(err)), {
+        status: 200,
+        headers: { "Content-Type": "text/plain" }
+      });
+    }
 
     // Add CORS headers to extension responses (clone so headers stay mutable).
     if (isTrustedExtensionOrigin(origin, trustedExtensionOrigins)) {
